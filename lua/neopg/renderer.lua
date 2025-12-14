@@ -15,8 +15,9 @@ local hl_groups = {
 	NeopgSearchMatch = { link = "Search" },
 }
 
--- State for the current pager
-M.state = nil
+-- States for result buffers (keyed by bufnr)
+M.states = {}
+M.buffer_count = 0
 
 -- Setup highlight groups
 local function setup_highlights()
@@ -332,11 +333,6 @@ local function setup_keymaps(state)
 	local export = require("neopg.export")
 	local executor = require("neopg.executor")
 
-	-- Quit
-	vim.keymap.set("n", km.quit, function()
-		M.close()
-	end, opts)
-
 	-- Navigation
 	vim.keymap.set("n", km.move_left, function()
 		navigator.move_left(state)
@@ -527,29 +523,40 @@ local function setup_keymaps(state)
 	end, opts)
 end
 
--- Render results in a new tab
+-- Render results in a new buffer
 function M.render(result)
 	setup_highlights()
 
-	-- Create state
-	M.state = create_state(result)
-	local state = M.state
+	-- Create unique buffer name
+	M.buffer_count = M.buffer_count + 1
+	local buf_name = string.format("neopg://results/%d", M.buffer_count)
 
-	-- Create new tab
-	vim.cmd("tabnew")
-	state.tabnr = vim.api.nvim_get_current_tabpage()
+	-- Create buffer (listed=true so it appears in buffer list)
+	local bufnr = vim.api.nvim_create_buf(true, true)
+
+	-- Create state for this buffer
+	local state = create_state(result)
+	state.bufnr = bufnr
 	state.winnr = vim.api.nvim_get_current_win()
+	M.states[bufnr] = state
 
-	-- Create buffer
-	state.bufnr = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_win_set_buf(state.winnr, state.bufnr)
+	-- Switch to the new buffer in current window
+	vim.api.nvim_set_current_buf(bufnr)
 
 	-- Buffer options
-	vim.api.nvim_buf_set_option(state.bufnr, "buftype", "nofile")
-	vim.api.nvim_buf_set_option(state.bufnr, "bufhidden", "wipe")
-	vim.api.nvim_buf_set_option(state.bufnr, "swapfile", false)
-	vim.api.nvim_buf_set_option(state.bufnr, "filetype", "neopg")
-	vim.api.nvim_buf_set_name(state.bufnr, "neopg://results")
+	vim.api.nvim_buf_set_option(bufnr, "buftype", "nofile")
+	vim.api.nvim_buf_set_option(bufnr, "bufhidden", "hide")
+	vim.api.nvim_buf_set_option(bufnr, "swapfile", false)
+	vim.api.nvim_buf_set_option(bufnr, "filetype", "neopg")
+	vim.api.nvim_buf_set_name(bufnr, buf_name)
+
+	-- Clean up state when buffer is deleted
+	vim.api.nvim_create_autocmd("BufDelete", {
+		buffer = bufnr,
+		callback = function()
+			M.states[bufnr] = nil
+		end,
+	})
 
 	-- Window options
 	vim.api.nvim_win_set_option(state.winnr, "number", false)
@@ -566,52 +573,19 @@ function M.render(result)
 	update_buffer(state)
 end
 
--- Close the pager
-function M.close()
-	if not M.state then
-		return
-	end
-
-	local state = M.state
-	local executor = require("neopg.executor")
-	local source_bufnr = executor.get_source_bufnr()
-
-	-- Close the tab
-	if state.tabnr and vim.api.nvim_tabpage_is_valid(state.tabnr) then
-		-- Get windows in the tab
-		local wins = vim.api.nvim_tabpage_list_wins(state.tabnr)
-		for _, win in ipairs(wins) do
-			if vim.api.nvim_win_is_valid(win) then
-				vim.api.nvim_win_close(win, true)
-			end
-		end
-	end
-
-	-- Clear state
-	M.state = nil
-
-	-- Return to source buffer if it exists
-	if source_bufnr and vim.api.nvim_buf_is_valid(source_bufnr) then
-		-- Find a window showing the source buffer, or create one
-		for _, win in ipairs(vim.api.nvim_list_wins()) do
-			if vim.api.nvim_win_get_buf(win) == source_bufnr then
-				vim.api.nvim_set_current_win(win)
-				return
-			end
-		end
-	end
-end
-
 -- Refresh the display (called by navigator/search/etc)
 function M.refresh()
-	if M.state then
-		update_buffer(M.state)
+	local bufnr = vim.api.nvim_get_current_buf()
+	local state = M.states[bufnr]
+	if state then
+		update_buffer(state)
 	end
 end
 
--- Get current state
+-- Get current state (for current buffer)
 function M.get_state()
-	return M.state
+	local bufnr = vim.api.nvim_get_current_buf()
+	return M.states[bufnr]
 end
 
 -- Show help popup
@@ -653,7 +627,6 @@ function M.show_help()
 		"Other:",
 		string.format("  %s        Re-run query", km.rerun_query),
 		string.format("  %s        Re-run without LIMIT", km.rerun_no_limit),
-		string.format("  %s        Quit", km.quit),
 	}
 
 	-- Create floating window for help

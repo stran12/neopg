@@ -81,7 +81,6 @@ require("neopg").setup({
 
   -- Keymaps (customize any)
   keymaps = {
-    quit = "q",
     yank_cell = "y",
     yank_row = "yy",
     export_csv = "<leader>ec",
@@ -149,7 +148,7 @@ Meta-commands open in a scrollable buffer with these keybindings:
 
 ### Navigating Results
 
-Results open in a new tab with a grid display:
+Results open in a new buffer with a grid display:
 
 ```
 | id | name    | email              |
@@ -160,6 +159,10 @@ Results open in a new tab with a grid display:
 
 Row 1 of 3 | Col 1 of 3 | (0.042s)
 ```
+
+Use your normal buffer navigation to switch between query and results:
+- `]b`/`[b` — switch between buffers
+- `<leader>bd` — close results buffer (or your buffer delete mapping)
 
 Navigate cell-by-cell:
 - `h/j/k/l` — move one cell
@@ -332,7 +335,6 @@ Buffer-local (in results pager):
 
 | Key | Action | Config Key |
 |-----|--------|------------|
-| `q` | Quit pager | `keymaps.quit` |
 | `r` | Re-run query | `keymaps.rerun_query` |
 | `R` | Re-run without LIMIT | `keymaps.rerun_no_limit` |
 | `?` | Show help | `keymaps.show_help` |

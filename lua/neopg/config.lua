@@ -22,8 +22,6 @@ M.defaults = {
 
 	-- Keymaps in pager buffer
 	keymaps = {
-		quit = "q",
-		quit_alt = "<Esc><Esc>",
 		yank_cell = "y",
 		yank_row = "yy",
 		yank_row_alt = "Y",
