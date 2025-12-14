@@ -1,0 +1,2 @@
+-- Autoload for neopg plugin
+-- Users should call require("neopg").setup() in their config
