@@ -19,14 +19,6 @@ local function setup_keymaps(state)
 	local buf = state.bufnr
 	local opts = { buffer = buf, noremap = true, silent = true }
 
-	-- Quit
-	vim.keymap.set("n", "q", function()
-		M.close()
-	end, opts)
-	vim.keymap.set("n", "<Esc><Esc>", function()
-		M.close()
-	end, opts)
-
 	-- Re-run command
 	vim.keymap.set("n", "r", function()
 		local executor = require("neopg.executor")
@@ -50,8 +42,8 @@ function M.render(result)
 	state.tabnr = vim.api.nvim_get_current_tabpage()
 	state.winnr = vim.api.nvim_get_current_win()
 
-	-- Create buffer
-	state.bufnr = vim.api.nvim_create_buf(false, true)
+	-- Create buffer (listed=true for buffer navigation)
+	state.bufnr = vim.api.nvim_create_buf(true, true)
 	vim.api.nvim_win_set_buf(state.winnr, state.bufnr)
 
 	-- Prepare content
@@ -62,7 +54,7 @@ function M.render(result)
 	if result.execution_time then
 		table.insert(lines, string.format("-- Execution time: %.3fs", result.execution_time))
 	end
-	table.insert(lines, "-- Press 'q' to close, '?' for help")
+	table.insert(lines, "-- Press '?' for help")
 	table.insert(lines, "")
 
 	-- Add output lines
@@ -79,7 +71,7 @@ function M.render(result)
 
 	-- Buffer options
 	vim.api.nvim_buf_set_option(state.bufnr, "buftype", "nofile")
-	vim.api.nvim_buf_set_option(state.bufnr, "bufhidden", "wipe")
+	vim.api.nvim_buf_set_option(state.bufnr, "bufhidden", "hide")
 	vim.api.nvim_buf_set_option(state.bufnr, "swapfile", false)
 	vim.api.nvim_buf_set_option(state.bufnr, "modifiable", false)
 	vim.api.nvim_buf_set_option(state.bufnr, "filetype", "neopg_raw")
@@ -93,6 +85,14 @@ function M.render(result)
 	vim.api.nvim_win_set_option(state.winnr, "wrap", false)
 	vim.api.nvim_win_set_option(state.winnr, "list", false)
 
+	-- Clean up state when buffer is deleted
+	vim.api.nvim_create_autocmd("BufDelete", {
+		buffer = state.bufnr,
+		callback = function()
+			M.state = nil
+		end,
+	})
+
 	-- Setup keymaps
 	setup_keymaps(state)
 
@@ -100,7 +100,7 @@ function M.render(result)
 	vim.api.nvim_win_set_cursor(state.winnr, { 5, 0 })
 end
 
--- Close the viewer
+-- Close the viewer (kept for programmatic use)
 function M.close()
 	if not M.state then
 		return
@@ -147,8 +147,9 @@ function M.show_help()
 		"",
 		"Actions:",
 		"  r         Re-run command",
-		"  q         Close viewer",
 		"  ?         Show this help",
+		"",
+		"Use normal buffer commands to close/switch",
 	}
 
 	local buf = vim.api.nvim_create_buf(false, true)
