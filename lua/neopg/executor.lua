@@ -171,9 +171,10 @@ local function execute_meta_command(connection, query)
 	-- Clean up temp file
 	os.remove(tmpfile)
 
-	-- Check for errors
-	if output:match("^ERROR:") or output:match("^psql:") then
-		vim.notify(output, vim.log.levels.ERROR)
+	-- Check for errors (patterns can appear anywhere in output)
+	if output:match("ERROR:") or output:match("psql:.-error") or output:match("FATAL:") then
+		local notify = require("neopg.notify")
+		notify.error(output, "Query Error")
 		return
 	end
 
@@ -257,9 +258,10 @@ function M.execute_query(connection, query, opts)
 	-- Clean up temp file
 	os.remove(tmpfile)
 
-	-- Check for errors
-	if output:match("^ERROR:") or output:match("^psql:") then
-		vim.notify(output, vim.log.levels.ERROR)
+	-- Check for errors (patterns can appear anywhere in output)
+	if output:match("ERROR:") or output:match("psql:.-error") or output:match("FATAL:") then
+		local notify = require("neopg.notify")
+		notify.error(output, "Query Error")
 		return
 	end
 
@@ -268,6 +270,7 @@ function M.execute_query(connection, query, opts)
 	local result = parser.parse(output)
 
 	if not result or #result.rows == 0 then
+		vim.notify("Query returned no results", vim.log.levels.INFO)
 		return
 	end
 

@@ -88,7 +88,8 @@ function M.discover_connections(start_dir)
 
 	-- Error if no connections found
 	if #all_connections == 0 then
-		vim.notify("No .env file(s) found with PostgreSQL DATABASE_URL variables", vim.log.levels.ERROR)
+		local notify = require("neopg.notify")
+		notify.error("No .env file(s) found with PostgreSQL DATABASE_URL variables\n\nSearched from: " .. start_dir, "Connection Error")
 	end
 
 	return all_connections
