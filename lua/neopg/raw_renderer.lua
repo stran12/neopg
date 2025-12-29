@@ -9,7 +9,6 @@ local function create_state(result)
 		result = result,
 		bufnr = nil,
 		winnr = nil,
-		tabnr = nil,
 		ns_id = vim.api.nvim_create_namespace("neopg_raw"),
 	}
 end
@@ -31,20 +30,18 @@ local function setup_keymaps(state)
 	end, opts)
 end
 
--- Render raw output in a new tab
+-- Render raw output in current window
 function M.render(result)
 	-- Create state
 	M.state = create_state(result)
 	local state = M.state
 
-	-- Create new tab
-	vim.cmd("tabnew")
-	state.tabnr = vim.api.nvim_get_current_tabpage()
-	state.winnr = vim.api.nvim_get_current_win()
-
 	-- Create buffer (listed=true for buffer navigation)
 	state.bufnr = vim.api.nvim_create_buf(true, true)
-	vim.api.nvim_win_set_buf(state.winnr, state.bufnr)
+	state.winnr = vim.api.nvim_get_current_win()
+
+	-- Switch to the new buffer in current window
+	vim.api.nvim_set_current_buf(state.bufnr)
 
 	-- Prepare content
 	local lines = {}
@@ -110,14 +107,9 @@ function M.close()
 	local executor = require("neopg.executor")
 	local source_bufnr = executor.get_source_bufnr()
 
-	-- Close the tab
-	if state.tabnr and vim.api.nvim_tabpage_is_valid(state.tabnr) then
-		local wins = vim.api.nvim_tabpage_list_wins(state.tabnr)
-		for _, win in ipairs(wins) do
-			if vim.api.nvim_win_is_valid(win) then
-				vim.api.nvim_win_close(win, true)
-			end
-		end
+	-- Delete the buffer
+	if state.bufnr and vim.api.nvim_buf_is_valid(state.bufnr) then
+		vim.api.nvim_buf_delete(state.bufnr, { force = true })
 	end
 
 	-- Clear state
@@ -125,12 +117,7 @@ function M.close()
 
 	-- Return to source buffer if it exists
 	if source_bufnr and vim.api.nvim_buf_is_valid(source_bufnr) then
-		for _, win in ipairs(vim.api.nvim_list_wins()) do
-			if vim.api.nvim_win_get_buf(win) == source_bufnr then
-				vim.api.nvim_set_current_win(win)
-				return
-			end
-		end
+		vim.api.nvim_set_current_buf(source_bufnr)
 	end
 end
 
