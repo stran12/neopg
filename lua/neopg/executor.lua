@@ -104,6 +104,12 @@ local function is_meta_command(query)
 	return trimmed:match("^\\") ~= nil
 end
 
+-- Check if query is a SELECT query
+local function is_select_query(query)
+	local trimmed = query:gsub("^%s+", ""):upper()
+	return trimmed:match("^SELECT") ~= nil or trimmed:match("^WITH") ~= nil
+end
+
 -- Check if query has LIMIT clause
 local function has_limit(query)
 	local upper_query = query:upper()
@@ -213,10 +219,10 @@ function M.execute_query(connection, query, opts)
 	M.last_connection = connection
 	M.source_bufnr = vim.api.nvim_get_current_buf()
 
-	-- Add LIMIT if configured and not present
+	-- Add LIMIT if configured and not present (only for SELECT queries)
 	local final_query = query
 	local was_limited = false
-	if not opts.no_limit and config.default_limit and config.default_limit > 0 then
+	if not opts.no_limit and config.default_limit and config.default_limit > 0 and is_select_query(query) then
 		final_query, was_limited = add_limit(query, config.default_limit)
 	end
 
@@ -262,6 +268,19 @@ function M.execute_query(connection, query, opts)
 	if output:match("ERROR:") or output:match("psql:.-error") or output:match("FATAL:") then
 		local notify = require("neopg.notify")
 		notify.error(output, "Query Error")
+		return
+	end
+
+	-- For non-select queries, show affected rows
+	if not is_select_query(query) then
+		local affected = output:match("INSERT %d+ (%d+)")
+			or output:match("UPDATE (%d+)")
+			or output:match("DELETE (%d+)")
+		if affected then
+			vim.notify(string.format("%s rows affected (%.3fs)", affected, execution_time), vim.log.levels.INFO)
+		else
+			vim.notify(string.format("Query executed (%.3fs)", execution_time), vim.log.levels.INFO)
+		end
 		return
 	end
 
